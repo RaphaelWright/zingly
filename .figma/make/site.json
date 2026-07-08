@@ -1,0 +1,10 @@
+{
+  "description": "Streamline project development by enabling teams to collaborate, plan, and track progress efficiently in a centralized platform.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
