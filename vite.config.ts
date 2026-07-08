@@ -125,7 +125,9 @@ function figmaSiteConfiguration(config: FigmaSiteConfiguration): Plugin {
           tags.push({ tag: 'meta', attrs: { name: 'robots', content: 'noindex, nofollow' }, injectTo: 'head' })
         }
         if (favicon) {
-          tags.push({ tag: 'link', attrs: { rel: 'icon', href: favicon }, injectTo: 'head' })
+          const faviconAttrs: Record<string, string> = { rel: 'icon', href: favicon }
+          if (favicon.endsWith('.svg')) faviconAttrs.type = 'image/svg+xml'
+          tags.push({ tag: 'link', attrs: faviconAttrs, injectTo: 'head' })
         }
         if (title) {
           tags.push({ tag: 'meta', attrs: { property: 'og:title', content: title }, injectTo: 'head' })

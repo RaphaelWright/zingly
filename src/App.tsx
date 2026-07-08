@@ -435,6 +435,17 @@ function Pagination({
   )
 }
 
+function LogoMark({ className = 'h-8 w-8' }: { className?: string }) {
+  return (
+    <img
+      src="/zingly.svg"
+      alt=""
+      aria-hidden="true"
+      className={`${className} rounded-full object-contain`}
+    />
+  )
+}
+
 function Nav({ page, setPage }: { page: Page; setPage: (page: Page) => void }) {
   const [open, setOpen] = useState(false)
 
@@ -467,7 +478,7 @@ function Nav({ page, setPage }: { page: Page; setPage: (page: Page) => void }) {
       <nav className="relative z-[70] mx-auto w-full max-w-5xl rounded-full border border-black/10 bg-white/85 px-4 py-3 shadow-soft backdrop-blur">
         <div className="flex items-center justify-between gap-3 md:justify-center md:gap-8">
           <button onClick={() => navigate('home')} className="flex items-center gap-2 rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-ink font-display text-sm italic text-white">Z</span>
+            <LogoMark />
             <span className="font-semibold tracking-tight">Zingly</span>
           </button>
           <div className="hidden items-center gap-1 md:flex">
@@ -1106,7 +1117,9 @@ function Footer({
         <div className="grid gap-10 md:grid-cols-[1.5fr_1fr_1fr_1.2fr]">
           <div>
             <div className="mb-5 flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white font-display italic text-ink">Z</span>
+              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white p-1">
+                <LogoMark className="h-9 w-9" />
+              </span>
               <span className="text-lg font-semibold">Zingly</span>
             </div>
             <p className="max-w-sm leading-8 text-white/50">Premium property discovery for rooms, apartments, houses, offices, and land. Direct contact, no booking layer.</p>
