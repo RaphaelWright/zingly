@@ -518,14 +518,14 @@ function Nav({ page, setPage }: { page: Page; setPage: (page: Page) => void }) {
           className="fixed inset-0 z-[60] flex items-start justify-center bg-ink/35 px-4 pt-24 backdrop-blur-sm md:hidden"
           onClick={() => setOpen(false)}
         >
-          <div className="w-full max-w-sm rounded-[2rem] bg-white/95 p-3 shadow-phone ring-1 ring-black/10" onClick={(event) => event.stopPropagation()}>
-            <div className="grid gap-2">
+          <div className="max-h-[calc(100vh-7rem)] w-full max-w-sm overflow-y-auto rounded-[1.6rem] bg-white/95 p-2 shadow-phone ring-1 ring-black/10" onClick={(event) => event.stopPropagation()}>
+            <div className="grid gap-1.5">
               {mobileLinks.map((link) => (
                 <button
                   key={link.page}
                   onClick={() => navigate(link.page)}
                   aria-current={page === link.page ? 'page' : undefined}
-                  className={`rounded-[1.35rem] px-5 py-4 text-left text-lg font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet ${
+                  className={`rounded-[1.1rem] px-4 py-2.5 text-left text-base font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet ${
                     page === link.page ? 'bg-ink text-white' : 'text-ink/70 hover:bg-canvas hover:text-violet'
                   }`}
                 >
