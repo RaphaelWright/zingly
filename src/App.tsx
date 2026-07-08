@@ -266,16 +266,16 @@ function DownloadBadge({ store, dark = false }: { store: string; dark?: boolean 
   return (
     <button
       aria-label={`${isApple ? 'Download on the' : 'Get it on'} ${store}`}
-      className={`flex min-w-[176px] items-center gap-3 rounded-[1.15rem] px-4 py-3 text-left shadow-[0_12px_28px_rgba(17,17,17,0.12)] ring-1 transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_38px_rgba(17,17,17,0.16)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet active:translate-y-0 ${
+      className={`flex min-w-[142px] items-center gap-2 rounded-[0.95rem] px-3 py-2.5 text-left shadow-[0_10px_24px_rgba(17,17,17,0.11)] ring-1 transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(17,17,17,0.14)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet active:translate-y-0 ${
         dark ? 'bg-white text-ink ring-white/20' : 'bg-[#050505] text-white ring-white/10'
       }`}
     >
-      <span className="flex h-9 w-9 items-center justify-center">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center [&>svg]:h-6 [&>svg]:w-6">
         <StoreIcon store={store} />
       </span>
       <span>
-        <span className="block text-[10px] font-medium uppercase leading-none tracking-wide opacity-70">{isApple ? 'Download on the' : 'Get it on'}</span>
-        <span className="mt-1 block text-[19px] font-semibold leading-none tracking-tight">{store}</span>
+        <span className="block text-[8px] font-medium uppercase leading-none tracking-wide opacity-70">{isApple ? 'Download on the' : 'Get it on'}</span>
+        <span className="mt-0.5 block text-[15px] font-semibold leading-none tracking-tight">{store}</span>
       </span>
     </button>
   )
