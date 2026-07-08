@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useEffect, useId, useMemo, useRef, useState } from 'react'
 
 type Page =
   | 'home'
@@ -31,6 +31,16 @@ type Note = {
   scale: number
   paper: string
   popular: number
+  shape: 'note' | 'sticky' | 'scrap'
+  tape: 'top' | 'corner' | 'side'
+  ink: string
+  fontSize: number
+}
+
+type ToastMessage = {
+  id: number
+  title: string
+  copy: string
 }
 
 const pageLinks: { label: string; page: Page }[] = [
@@ -50,10 +60,29 @@ const legalLinks: { label: string; page: Page }[] = [
 
 const routePages: Page[] = ['home', 'explore', 'community', 'about', 'contact', 'download', 'faq', 'privacy', 'terms']
 
-function pageFromHash(): Page {
-  const hash = window.location.hash.replace('#', '') as Page
-  if (!hash) return 'home'
-  return routePages.includes(hash) ? hash : 'missing'
+const pagePaths: Record<Exclude<Page, 'missing'>, string> = {
+  home: '/',
+  explore: '/explore',
+  community: '/community',
+  about: '/about',
+  contact: '/contact',
+  download: '/download',
+  faq: '/faq',
+  privacy: '/privacy',
+  terms: '/terms',
+}
+
+function pageFromLocation(): Page {
+  const hashPage = window.location.hash.replace('#', '') as Page
+  if (routePages.includes(hashPage)) return hashPage
+
+  const path = window.location.pathname.replace(/\/+$/, '') || '/'
+  const match = Object.entries(pagePaths).find(([, routePath]) => routePath === path)
+  return match ? (match[0] as Page) : 'missing'
+}
+
+function pathForPage(page: Page) {
+  return page === 'missing' ? '/404' : pagePaths[page]
 }
 
 const properties: Property[] = [
@@ -123,38 +152,74 @@ const seedMessages = [
   'Kweku called the agent',
 ]
 
+function seededUnit(seed: number) {
+  const value = Math.sin(seed * 9301 + 49297) * 233280
+  return value - Math.floor(value)
+}
+
 function makeNotes(count: number): Note[] {
   const papers = ['#fffaf0', '#f7f0df', '#ffffff', '#f2ead8', '#f8f8f8']
+  const shapes: Note['shape'][] = ['note', 'sticky', 'scrap']
+  const tapes: Note['tape'][] = ['top', 'corner', 'side']
+  const inks = ['#111111', '#262626', '#3a3028', '#5a4a3f', '#800080']
+  const columns = 13
+  const rows = Math.ceil(count / columns)
+  const cells = Array.from({ length: columns * rows }, (_, cell) => ({
+    col: cell % columns,
+    row: Math.floor(cell / columns),
+    order: seededUnit(cell + 11),
+  })).sort((a, b) => a.order - b.order)
+
   return Array.from({ length: count }, (_, index) => {
     const text = seedMessages[index % seedMessages.length]
-    const row = Math.floor(index / 10)
-    const col = index % 10
+    const cell = cells[index]
+    const xJitter = 0.18 + seededUnit(index + 101) * 0.54
+    const yJitter = 0.18 + seededUnit(index + 201) * 0.54
+
     return {
       id: index + 1,
       text,
       name: text.split(' ')[0],
-      x: 3 + col * 9.4 + ((index * 17) % 5),
-      y: 4 + row * 8.2 + ((index * 13) % 6),
-      rotate: ((index * 37) % 18) - 9,
-      scale: 0.86 + ((index * 11) % 9) / 20,
+      x: 3 + ((cell.col + xJitter) / columns) * 88,
+      y: 4 + ((cell.row + yJitter) / rows) * 88,
+      rotate: -10 + seededUnit(index + 301) * 20,
+      scale: 0.86 + seededUnit(index + 401) * 0.42,
       paper: papers[index % papers.length],
-      popular: (index * 29) % 100,
+      popular: Math.round(seededUnit(index + 501) * 100),
+      shape: shapes[index % shapes.length],
+      tape: tapes[Math.floor(seededUnit(index + 601) * tapes.length)],
+      ink: inks[Math.floor(seededUnit(index + 701) * inks.length)],
+      fontSize: 18 + Math.round(seededUnit(index + 801) * 12),
     }
   })
 }
 
-const wallNotes = makeNotes(130)
+const wallNotes = makeNotes(240)
+const WALL_BATCH_MS = 12000
+
+function getNoteBatch(notes: Note[], batchIndex: number, batchSize: number) {
+  if (notes.length <= batchSize) return notes
+
+  const batchCount = Math.ceil(notes.length / batchSize)
+  const start = (batchIndex % batchCount) * batchSize
+  const batch = notes.slice(start, start + batchSize)
+
+  if (batch.length === batchSize) return batch
+  return [...batch, ...notes.slice(0, batchSize - batch.length)]
+}
 
 function AppButton({
   children,
   tone = 'dark',
   onClick,
   type = 'button',
+  disabled = false,
 }: {
   children: React.ReactNode
   tone?: 'dark' | 'light' | 'purple'
   onClick?: () => void
   type?: 'button' | 'submit'
+  disabled?: boolean
 }) {
   const toneClass =
     tone === 'purple'
@@ -167,54 +232,298 @@ function AppButton({
     <button
       type={type}
       onClick={onClick}
-      className={`${toneClass} rounded-full px-5 py-3 text-sm font-semibold transition duration-300 hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet active:translate-y-0`}
+      disabled={disabled}
+      className={`${toneClass} rounded-full px-5 py-3 text-sm font-semibold transition duration-300 hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0`}
     >
       {children}
     </button>
   )
 }
 
+function StoreIcon({ store }: { store: string }) {
+  if (store === 'App Store') {
+    return (
+      <svg className="h-8 w-8" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true">
+        <path d="M21.48 5.12c.93-1.1 1.56-2.62 1.39-4.12-1.34.06-2.96.89-3.92 2-.86.98-1.62 2.56-1.42 4.06 1.5.12 3.02-.76 3.95-1.94Z" />
+        <path d="M27.74 22.62c-.66 1.52-.98 2.2-1.84 3.55-1.19 1.82-2.86 4.08-4.94 4.1-1.84.02-2.31-1.2-4.82-1.19-2.5.01-3.02 1.22-4.86 1.2-2.07-.02-3.65-2.06-4.84-3.88-3.32-5.1-3.67-11.08-1.62-14.26 1.45-2.25 3.75-3.57 5.9-3.57 2.2 0 3.58 1.21 5.4 1.21 1.77 0 2.85-1.21 5.4-1.21 1.93 0 3.98 1.05 5.42 2.86-4.76 2.61-3.99 9.4.8 11.19Z" />
+      </svg>
+    )
+  }
+
+  return (
+    <svg className="h-8 w-8" viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M4.1 2.7c-.36.38-.58.97-.58 1.74v23.12c0 .77.22 1.36.58 1.74L17.02 16 4.1 2.7Z" fill="#00A0FF" />
+      <path d="m21.36 11.51-4.34 4.49 4.34 4.49 5.14-2.96c1.47-.85 1.47-2.21 0-3.06l-5.14-2.96Z" fill="#FFCE00" />
+      <path d="m21.36 20.49-4.34-4.49L4.1 29.3c.57.6 1.52.67 2.58.06l14.68-8.87Z" fill="#F63448" />
+      <path d="M21.36 11.51 6.68 2.64C5.62 2.03 4.67 2.1 4.1 2.7L17.02 16l4.34-4.49Z" fill="#00D67F" />
+    </svg>
+  )
+}
+
 function DownloadBadge({ store, dark = false }: { store: string; dark?: boolean }) {
+  const isApple = store === 'App Store'
+
   return (
     <button
-      className={`flex min-w-40 items-center gap-3 rounded-2xl px-5 py-3 text-left transition duration-300 hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet ${
-        dark ? 'bg-white text-ink' : 'bg-ink text-white'
+      aria-label={`${isApple ? 'Download on the' : 'Get it on'} ${store}`}
+      className={`flex min-w-[176px] items-center gap-3 rounded-[1.15rem] px-4 py-3 text-left shadow-[0_12px_28px_rgba(17,17,17,0.12)] ring-1 transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_38px_rgba(17,17,17,0.16)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet active:translate-y-0 ${
+        dark ? 'bg-white text-ink ring-white/20' : 'bg-[#050505] text-white ring-white/10'
       }`}
     >
-      <span className={`flex h-8 w-8 items-center justify-center rounded-xl ${dark ? 'bg-ink text-white' : 'bg-white text-ink'}`}>
-        {store === 'App Store' ? 'A' : 'G'}
+      <span className="flex h-9 w-9 items-center justify-center">
+        <StoreIcon store={store} />
       </span>
       <span>
-        <span className="block text-[11px] opacity-60">{store === 'App Store' ? 'Download on the' : 'Get it on'}</span>
-        <span className="block text-sm font-semibold">{store}</span>
+        <span className="block text-[10px] font-medium uppercase leading-none tracking-wide opacity-70">{isApple ? 'Download on the' : 'Get it on'}</span>
+        <span className="mt-1 block text-[19px] font-semibold leading-none tracking-tight">{store}</span>
       </span>
     </button>
   )
 }
 
-function Nav({ page, setPage }: { page: Page; setPage: (page: Page) => void }) {
+function FormField({
+  label,
+  name,
+  type = 'text',
+  multiline = false,
+  required = false,
+  placeholder,
+}: {
+  label: string
+  name: string
+  type?: string
+  multiline?: boolean
+  required?: boolean
+  placeholder?: string
+}) {
+  const id = useId()
+  const fieldClass = 'w-full rounded-2xl bg-canvas px-5 py-4 outline-none transition focus:ring-2 focus:ring-violet'
+
   return (
-    <header className="fixed inset-x-0 top-0 z-50 flex justify-center px-4 pt-4">
-      <nav className="flex max-w-5xl items-center gap-3 rounded-full border border-black/10 bg-white/80 px-4 py-3 shadow-soft backdrop-blur md:gap-8">
-        <button onClick={() => setPage('home')} className="flex items-center gap-2 rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-ink font-display text-sm italic text-white">Z</span>
-          <span className="font-semibold tracking-tight">Zingly</span>
-        </button>
-        <div className="hidden items-center gap-1 md:flex">
-          {pageLinks.map((link) => (
-            <button
-              key={link.page}
-              onClick={() => setPage(link.page)}
-              className={`rounded-full px-4 py-2 text-sm transition hover:text-violet focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet ${
-                page === link.page ? 'text-violet' : 'text-ink/60'
-              }`}
-            >
-              {link.label}
-            </button>
-          ))}
+    <label className="block">
+      <span className="mb-2 block text-sm font-semibold">
+        {label}
+        {required ? <span className="text-violet"> *</span> : null}
+      </span>
+      {multiline ? (
+        <textarea id={id} name={name} required={required} placeholder={placeholder} className={`${fieldClass} min-h-40 resize-none`} />
+      ) : (
+        <input id={id} name={name} type={type} required={required} placeholder={placeholder} className={fieldClass} />
+      )}
+    </label>
+  )
+}
+
+function Toast({ message, onClose }: { message: ToastMessage | null; onClose: () => void }) {
+  useEffect(() => {
+    if (!message) return
+    const timer = window.setTimeout(onClose, 4200)
+    return () => window.clearTimeout(timer)
+  }, [message, onClose])
+
+  if (!message) return null
+
+  return (
+    <div role="status" aria-live="polite" className="fixed bottom-5 right-5 z-[90] max-w-sm rounded-[1.5rem] bg-ink p-5 text-white shadow-phone">
+      <p className="font-semibold">{message.title}</p>
+      <p className="mt-1 text-sm leading-6 text-white/60">{message.copy}</p>
+      <button onClick={onClose} className="mt-3 rounded-full text-xs font-semibold text-white/60 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet">
+        Dismiss
+      </button>
+    </div>
+  )
+}
+
+function Modal({
+  title,
+  children,
+  onClose,
+}: {
+  title: string
+  children: React.ReactNode
+  onClose: () => void
+}) {
+  const closeRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    closeRef.current?.focus()
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose()
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-ink/50 p-6 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div className="max-w-md rounded-[2rem] bg-[#fffaf0] p-10 shadow-phone" onClick={(event) => event.stopPropagation()}>
+        <h2 id="modal-title" className="sr-only">{title}</h2>
+        {children}
+        <div className="mt-8">
+          <AppButton onClick={onClose}>Close</AppButton>
         </div>
-        <AppButton tone="purple" onClick={() => setPage('download')}>Download App</AppButton>
+        <button ref={closeRef} onClick={onClose} className="sr-only">Close note</button>
+      </div>
+    </div>
+  )
+}
+
+function Breadcrumbs({ current }: { current: string }) {
+  return (
+    <nav aria-label="Breadcrumb" className="mb-8 text-sm text-ink/45">
+      <button onClick={() => window.dispatchEvent(new CustomEvent('zingly:navigate', { detail: 'home' }))} className="rounded-full hover:text-violet focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet">
+        Home
+      </button>
+      <span className="mx-2">/</span>
+      <span className="text-ink/70">{current}</span>
+    </nav>
+  )
+}
+
+function EmptyState({ title, copy }: { title: string; copy: string }) {
+  return (
+    <div className="rounded-[2rem] bg-white p-8 text-center">
+      <div className="mx-auto mb-5 h-16 w-16 rounded-3xl bg-canvas" />
+      <h1 className="font-display text-5xl font-semibold leading-tight">{title}</h1>
+      <p className="mx-auto mt-3 max-w-sm leading-7 text-ink/55">{copy}</p>
+    </div>
+  )
+}
+
+function LoadingSkeleton() {
+  return (
+    <div aria-hidden="true" className="grid gap-4 rounded-[2rem] bg-white p-5 shadow-soft">
+      <div className="h-36 animate-pulse rounded-[1.5rem] bg-canvas" />
+      <div className="h-4 w-2/3 animate-pulse rounded-full bg-canvas" />
+      <div className="h-4 w-1/2 animate-pulse rounded-full bg-canvas" />
+    </div>
+  )
+}
+
+function Pagination({
+  page,
+  total,
+  onChange,
+}: {
+  page: number
+  total: number
+  onChange: (page: number) => void
+}) {
+  return (
+    <nav aria-label="Pagination" className="mt-10 flex justify-center gap-2">
+      {Array.from({ length: total }, (_, index) => index + 1).map((item) => (
+        <button
+          key={item}
+          onClick={() => onChange(item)}
+          aria-current={page === item ? 'page' : undefined}
+          className={`h-10 w-10 rounded-full text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet ${
+            page === item ? 'bg-violet text-white' : 'bg-white text-ink/55 hover:text-violet'
+          }`}
+        >
+          {item}
+        </button>
+      ))}
+    </nav>
+  )
+}
+
+function Nav({ page, setPage }: { page: Page; setPage: (page: Page) => void }) {
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false)
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
+
+  function navigate(next: Page) {
+    setOpen(false)
+    setPage(next)
+  }
+
+  const mobileLinks = [...pageLinks, ...legalLinks]
+
+  return (
+    <header className="fixed inset-x-0 top-0 z-50 px-4 pt-4">
+      <nav className="relative z-[70] mx-auto w-full max-w-5xl rounded-full border border-black/10 bg-white/85 px-4 py-3 shadow-soft backdrop-blur">
+        <div className="flex items-center justify-between gap-3 md:justify-center md:gap-8">
+          <button onClick={() => navigate('home')} className="flex items-center gap-2 rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-ink font-display text-sm italic text-white">Z</span>
+            <span className="font-semibold tracking-tight">Zingly</span>
+          </button>
+          <div className="hidden items-center gap-1 md:flex">
+            {pageLinks.map((link) => (
+              <button
+                key={link.page}
+                onClick={() => navigate(link.page)}
+                aria-current={page === link.page ? 'page' : undefined}
+                className={`rounded-full px-4 py-2 text-sm transition hover:text-violet focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet ${
+                  page === link.page ? 'text-violet' : 'text-ink/60'
+                }`}
+              >
+                {link.label}
+              </button>
+            ))}
+          </div>
+          <div className="hidden md:block">
+            <AppButton tone="purple" onClick={() => navigate('download')}>Download App</AppButton>
+          </div>
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-controls="mobile-navigation"
+            onClick={() => setOpen((current) => !current)}
+            className={`rounded-full px-4 py-2 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet md:hidden ${
+              open ? 'bg-violet text-white' : 'bg-ink text-white'
+            }`}
+          >
+            {open ? 'Close' : 'Menu'}
+          </button>
+        </div>
       </nav>
+      {open ? (
+        <div
+          id="mobile-navigation"
+          className="fixed inset-0 z-[60] flex items-start justify-center bg-ink/35 px-4 pt-24 backdrop-blur-sm md:hidden"
+          onClick={() => setOpen(false)}
+        >
+          <div className="w-full max-w-sm rounded-[2rem] bg-white/95 p-3 shadow-phone ring-1 ring-black/10" onClick={(event) => event.stopPropagation()}>
+            <div className="grid gap-2">
+              {mobileLinks.map((link) => (
+                <button
+                  key={link.page}
+                  onClick={() => navigate(link.page)}
+                  aria-current={page === link.page ? 'page' : undefined}
+                  className={`rounded-[1.35rem] px-5 py-4 text-left text-lg font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet ${
+                    page === link.page ? 'bg-ink text-white' : 'text-ink/70 hover:bg-canvas hover:text-violet'
+                  }`}
+                >
+                  {link.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </header>
   )
 }
@@ -226,6 +535,22 @@ function SectionHeader({ eyebrow, title, copy }: { eyebrow: string; title: React
       <h2 className="font-display text-4xl font-semibold leading-tight tracking-tight md:text-6xl">{title}</h2>
       {copy ? <p className="mx-auto mt-5 max-w-xl text-base leading-8 text-ink/60">{copy}</p> : null}
     </div>
+  )
+}
+
+function WaveEdge({ position, fill = '#F7F7F7' }: { position: 'top' | 'bottom'; fill?: string }) {
+  return (
+    <svg
+      className={`pointer-events-none absolute left-0 w-full ${position === 'top' ? '-top-px' : '-bottom-px rotate-180'}`}
+      viewBox="0 0 1440 92"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+    >
+      <path
+        fill={fill}
+        d="M0 38L80 45.3C160 53 320 67 480 58.7C640 50 800 18 960 16.7C1120 15 1280 45 1360 60L1440 75V0H0V38Z"
+      />
+    </svg>
   )
 }
 
@@ -280,27 +605,52 @@ function PropertyCard({ property, className = '' }: { property: Property; classN
 }
 
 function NoteCard({ note, onClick }: { note: Note; onClick?: () => void }) {
+  const widthClass = note.shape === 'scrap' ? 'min-w-32 max-w-52' : note.shape === 'sticky' ? 'min-w-28 max-w-44' : 'min-w-36 max-w-56'
+  const radiusClass = note.shape === 'scrap' ? 'rounded-[1.1rem]' : 'rounded-2xl'
+  const tapeClass =
+    note.tape === 'corner'
+      ? '-right-3 -top-2 h-5 w-14 rotate-[16deg]'
+      : note.tape === 'side'
+        ? '-left-5 top-1/2 h-5 w-14 -translate-y-1/2 rotate-90'
+        : '-top-2 left-1/2 h-4 w-12 -translate-x-1/2 rotate-[-3deg]'
+
   return (
     <button
       onClick={onClick}
-      className="absolute rounded-2xl p-3 text-left font-hand text-xl leading-none shadow-note transition duration-300 hover:z-20 hover:-translate-y-2 focus-visible:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet"
+      aria-label={`Open note: ${note.text}`}
+      className={`absolute ${widthClass} ${radiusClass} p-3 text-left font-hand leading-none shadow-note transition duration-300 hover:z-20 hover:-translate-y-2 focus-visible:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet`}
       style={{
         left: `${note.x}%`,
         top: `${note.y}%`,
         transform: `rotate(${note.rotate}deg) scale(${note.scale})`,
         backgroundColor: note.paper,
+        color: note.ink,
+        fontSize: `${note.fontSize}px`,
       }}
     >
       <span>{note.text}</span>
-      <span className="absolute -top-2 left-1/2 h-4 w-12 -translate-x-1/2 rotate-[-3deg] rounded-sm bg-white/60" />
+      <span className={`absolute ${tapeClass} rounded-sm bg-white/60`} />
     </button>
   )
 }
 
 function ScrapbookPreview({ setPage }: { setPage: (page: Page) => void }) {
+  const [batchIndex, setBatchIndex] = useState(0)
+  const previewNotes = getNoteBatch(wallNotes, batchIndex, 18)
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setBatchIndex((current) => current + 1)
+    }, WALL_BATCH_MS)
+
+    return () => window.clearInterval(timer)
+  }, [])
+
   return (
-    <section className="px-6 py-24">
-      <div className="mx-auto max-w-6xl">
+    <section className="relative overflow-hidden bg-white px-6 py-28">
+      <WaveEdge position="top" />
+      <WaveEdge position="bottom" />
+      <div className="relative mx-auto max-w-6xl">
         <SectionHeader
           eyebrow="Community"
           title="The Zingly Wall"
@@ -309,7 +659,7 @@ function ScrapbookPreview({ setPage }: { setPage: (page: Page) => void }) {
         <div className="no-scrollbar overflow-x-auto rounded-[2.5rem] shadow-soft">
           <div className="relative h-[520px] min-w-[960px] overflow-hidden bg-paper md:min-w-0">
             <div className="absolute inset-y-0 left-16 w-px bg-red-900/10" />
-            {wallNotes.slice(0, 22).map((note) => <NoteCard key={note.id} note={note} />)}
+            {previewNotes.map((note) => <NoteCard key={note.id} note={note} />)}
           </div>
         </div>
         <div className="mt-8 text-center">
@@ -326,10 +676,7 @@ function Home({ setPage }: { setPage: (page: Page) => void }) {
       <section className="relative overflow-hidden px-6 pb-20 pt-36 md:pt-44">
         <div className="mx-auto grid max-w-6xl items-center gap-14 lg:grid-cols-[0.9fr_1.1fr]">
           <div>
-            <p className="mb-6 inline-flex rounded-full bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-violet shadow-soft">
-              Property discovery, simplified
-            </p>
-            <h1 className="font-display text-6xl font-semibold leading-none tracking-tight md:text-8xl">
+                        <h1 className="font-display text-6xl font-semibold leading-none tracking-tight md:text-8xl">
               Find somewhere <span className="italic">worth</span> calling home.
             </h1>
             <p className="mt-7 max-w-md text-lg leading-8 text-ink/60">
@@ -354,8 +701,10 @@ function Home({ setPage }: { setPage: (page: Page) => void }) {
         </div>
       </section>
 
-      <section className="px-6 py-20">
-        <div className="mx-auto max-w-6xl">
+      <section className="relative overflow-hidden bg-white px-6 py-28">
+        <WaveEdge position="top" />
+        <WaveEdge position="bottom" />
+        <div className="relative mx-auto max-w-6xl">
           <SectionHeader eyebrow="On Zingly now" title={<>Spaces that <span className="italic">move you.</span></>} />
           <div className="no-scrollbar -mx-6 flex snap-x gap-6 overflow-x-auto px-6 pb-6 md:mx-0 md:grid md:grid-cols-4 md:items-start md:overflow-visible md:px-0 md:pb-0">
             {properties.map((property, index) => (
@@ -368,15 +717,40 @@ function Home({ setPage }: { setPage: (page: Page) => void }) {
         </div>
       </section>
 
-      <section className="px-6 py-24">
-        <div className="mx-auto grid max-w-6xl items-center gap-10 md:grid-cols-2">
-          <img className="h-[34rem] w-full rounded-[2.5rem] object-cover shadow-soft" src="https://images.unsplash.com/photo-1600210492493-0946911123ea?auto=format&fit=crop&w=1000&q=80" alt="Calm luxury living room" />
-          <div className="md:pl-10">
-            <p className="mb-5 text-xs font-semibold uppercase tracking-[0.28em] text-violet">Editorial</p>
-            <h2 className="font-display text-5xl font-semibold leading-tight md:text-7xl">Discovery should feel less like searching, and more like noticing.</h2>
-            <p className="mt-7 max-w-md leading-8 text-ink/60">
-              Zingly keeps the experience clear and atmospheric, so the place has room to speak before the details take over.
+      <section
+        className="relative my-16 overflow-hidden bg-ink px-6 py-28 text-white md:my-24 md:py-36"
+        style={{ clipPath: 'polygon(0 5%, 100% 0, 100% 94%, 0 100%)' }}
+      >
+        <div className="absolute inset-0 opacity-[0.08]" style={{ backgroundImage: 'radial-gradient(circle at 20% 20%, #ffffff 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
+        <div className="relative mx-auto grid max-w-6xl items-center gap-12 md:grid-cols-[0.9fr_1.1fr]">
+          <div>
+            <p className="mb-6 text-xs font-semibold uppercase tracking-[0.32em] text-violet">Editorial story</p>
+            <h2 className="font-display text-5xl font-semibold leading-[0.98] tracking-tight md:text-8xl">
+              Less search.
+              <span className="block italic text-white/70">More noticing.</span>
+            </h2>
+            <p className="mt-8 max-w-md text-lg leading-9 text-white/58">
+              Zingly gives each space the quiet it deserves. Details are present, but never louder than the feeling of arriving somewhere that fits.
             </p>
+            <div className="mt-10 max-w-sm rounded-[2rem] border border-white/10 bg-white/[0.06] p-6 backdrop-blur">
+              <p className="font-display text-3xl italic leading-tight text-white/86">A property app with the restraint of an architecture journal.</p>
+            </div>
+          </div>
+          <div className="relative min-h-[620px]">
+            <img
+              className="absolute right-0 top-0 h-[31rem] w-[82%] rounded-[2.75rem] object-cover shadow-phone"
+              src="https://images.unsplash.com/photo-1600210492493-0946911123ea?auto=format&fit=crop&w=1100&q=80"
+              alt="Calm luxury living room"
+            />
+            <img
+              className="absolute bottom-0 left-0 h-72 w-[58%] rounded-[2rem] border-[10px] border-ink object-cover shadow-soft"
+              src="https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=900&q=80"
+              alt="Architectural interior detail"
+            />
+            <div className="absolute bottom-20 right-6 max-w-48 rounded-[1.75rem] bg-white p-5 text-ink shadow-soft">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet">No booking layer</p>
+              <p className="mt-3 text-sm leading-6 text-ink/60">Browse the place. Contact the advertiser. Keep the process direct.</p>
+            </div>
           </div>
         </div>
       </section>
@@ -388,12 +762,18 @@ function Home({ setPage }: { setPage: (page: Page) => void }) {
 }
 
 function Explore() {
+  const [collectionPage, setCollectionPage] = useState(1)
+  const pageSize = 3
+  const totalPages = Math.ceil(collections.length / pageSize)
+  const visibleCollections = collections.slice((collectionPage - 1) * pageSize, collectionPage * pageSize)
+
   return (
     <main className="px-6 pb-24 pt-36">
       <div className="mx-auto max-w-6xl">
+        <Breadcrumbs current="Explore" />
         <SectionHeader eyebrow="Explore" title="Curated paths into the property market." copy="Collections replace clutter. Each category feels considered, visual, and direct." />
         <div className="grid gap-8 md:grid-cols-2">
-          {collections.map(([title, copy, image], index) => (
+          {visibleCollections.map(([title, copy, image], index) => (
             <article key={title} className={`group overflow-hidden rounded-[2.5rem] bg-white shadow-soft ${index === 1 || index === 4 ? 'md:mt-16' : ''}`}>
               <img className="h-80 w-full object-cover transition duration-700 group-hover:scale-105" src={image} alt={title} />
               <div className="flex items-end justify-between gap-6 p-7">
@@ -406,6 +786,7 @@ function Explore() {
             </article>
           ))}
         </div>
+        <Pagination page={collectionPage} total={totalPages} onChange={setCollectionPage} />
       </div>
     </main>
   )
@@ -437,6 +818,10 @@ function Community() {
       scale: 0.95 + Math.random() * 0.35,
       paper: '#fffaf0',
       popular: 1,
+      shape: 'sticky',
+      tape: 'top',
+      ink: '#111111',
+      fontSize: 24,
     }
     setNotes([next, ...notes])
     event.currentTarget.reset()
@@ -445,33 +830,41 @@ function Community() {
   return (
     <main className="px-6 pb-24 pt-36">
       <div className="mx-auto max-w-6xl">
+        <Breadcrumbs current="Community" />
         <SectionHeader eyebrow="The Zingly Wall" title="Leave Your Mark." copy="Add your name, a small note, or a memory from your search. The wall grows like a guestbook filled over many years." />
         <form onSubmit={submitMark} className="mx-auto mb-10 grid max-w-3xl gap-3 rounded-[2rem] bg-white p-3 shadow-soft md:grid-cols-[1fr_1.6fr_auto]">
-          <input name="name" className="rounded-full bg-canvas px-5 py-4 outline-none focus:ring-2 focus:ring-violet" placeholder="Name" />
-          <input name="message" className="rounded-full bg-canvas px-5 py-4 outline-none focus:ring-2 focus:ring-violet" placeholder="Optional short message" />
+          <input name="name" aria-label="Name" className="rounded-full bg-canvas px-5 py-4 outline-none focus:ring-2 focus:ring-violet" placeholder="Name" />
+          <input name="message" aria-label="Optional short message" maxLength={44} className="rounded-full bg-canvas px-5 py-4 outline-none focus:ring-2 focus:ring-violet" placeholder="Optional short message" />
           <AppButton type="submit" tone="purple">Sign</AppButton>
         </form>
-        <div className="mb-5 flex justify-center gap-2">
+        <div className="mb-5 flex justify-center gap-2" role="group" aria-label="Filter wall notes">
           {(['Recent', 'Popular', 'Random'] as const).map((item) => (
-            <button key={item} onClick={() => setFilter(item)} className={`rounded-full px-4 py-2 text-sm font-semibold transition ${filter === item ? 'bg-violet text-white' : 'bg-white text-ink/60 hover:text-violet'}`}>
+            <button
+              key={item}
+              onClick={() => setFilter(item)}
+              aria-pressed={filter === item}
+              className={`rounded-full px-4 py-2 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet ${filter === item ? 'bg-violet text-white' : 'bg-white text-ink/60 hover:text-violet'}`}
+            >
               {item}
             </button>
           ))}
         </div>
-        <div className="relative h-[980px] overflow-hidden rounded-[2.75rem] bg-paper shadow-soft">
-          <div className="absolute inset-y-0 left-16 w-px bg-red-900/10" />
-          <div className="absolute left-8 top-8 font-hand text-3xl text-ink/20">Zingly, since the first search</div>
-          {ordered.map((note) => <NoteCard key={note.id} note={note} onClick={() => setSelected(note)} />)}
+        <div className="no-scrollbar overflow-x-auto rounded-[2.75rem] shadow-soft">
+          <div className="relative h-[1380px] min-w-[1420px] overflow-hidden bg-paper md:min-w-0">
+            <div className="absolute inset-y-0 left-16 w-px bg-red-900/10" />
+            <div className="absolute left-8 top-8 font-hand text-3xl text-ink/20">Zingly, since the first search</div>
+            <div className="absolute right-[12%] top-[11%] rotate-6 font-hand text-6xl text-ink/10">home</div>
+            <div className="absolute left-[18%] top-[42%] h-14 w-20 rotate-[-8deg] rounded-full border-2 border-ink/10" />
+            <div className="absolute bottom-[16%] right-[22%] font-hand text-4xl text-violet/20">call the agent</div>
+            {ordered.map((note) => <NoteCard key={note.id} note={note} onClick={() => setSelected(note)} />)}
+          </div>
         </div>
       </div>
       {selected ? (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-ink/50 p-6 backdrop-blur-sm" onClick={() => setSelected(null)}>
-          <div className="max-w-md rounded-[2rem] bg-[#fffaf0] p-10 shadow-phone" onClick={(event) => event.stopPropagation()}>
+        <Modal title="Community note" onClose={() => setSelected(null)}>
             <p className="font-hand text-5xl leading-tight">{selected.text}</p>
             <p className="mt-8 text-sm text-ink/45">Signed by {selected.name}</p>
-            <div className="mt-8"><AppButton onClick={() => setSelected(null)}>Close</AppButton></div>
-          </div>
-        </div>
+        </Modal>
       ) : null}
     </main>
   )
@@ -481,6 +874,7 @@ function About() {
   return (
     <main className="px-6 pb-24 pt-36">
       <div className="mx-auto max-w-6xl">
+        <Breadcrumbs current="About" />
         <SectionHeader eyebrow="About" title="A calmer way to meet the property market." />
         <div className="grid gap-8 md:grid-cols-[1.1fr_0.9fr]">
           <img className="h-[36rem] rounded-[2.5rem] object-cover shadow-soft" src="https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=1000&q=80" alt="Architectural interior with soft light" />
@@ -502,30 +896,34 @@ function About() {
   )
 }
 
-function Contact() {
+function Contact({ showToast }: { showToast: (message: Omit<ToastMessage, 'id'>) => void }) {
+  function submitContact(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    showToast({
+      title: 'Message ready',
+      copy: 'Thanks for reaching out. This prototype captured the message state without sending email.',
+    })
+    event.currentTarget.reset()
+  }
+
   return (
     <main className="px-6 pb-24 pt-36">
       <div className="mx-auto grid max-w-6xl gap-10 md:grid-cols-2">
         <div>
+          <Breadcrumbs current="Contact" />
           <p className="mb-4 text-xs font-semibold uppercase tracking-[0.28em] text-violet">Contact</p>
           <h1 className="font-display text-6xl font-semibold leading-tight">A simple note is enough.</h1>
           <p className="mt-6 max-w-md leading-8 text-ink/60">Questions about Zingly, advertising, support, or partnerships can start here.</p>
           <img className="mt-10 h-80 rounded-[2rem] object-cover shadow-soft" src="https://images.unsplash.com/photo-1604014237800-1c9102c219da?auto=format&fit=crop&w=900&q=80" alt="Minimal architecture" />
         </div>
-        <form className="rounded-[2.5rem] bg-white p-6 shadow-soft">
-          {['Name', 'Email', 'Subject'].map((label) => (
-            <label key={label} className="mb-4 block">
-              <span className="mb-2 block text-sm font-semibold">{label}</span>
-              <input className="w-full rounded-2xl bg-canvas px-5 py-4 outline-none focus:ring-2 focus:ring-violet" />
-            </label>
-          ))}
-          <label className="block">
-            <span className="mb-2 block text-sm font-semibold">Message</span>
-            <textarea className="min-h-40 w-full resize-none rounded-2xl bg-canvas px-5 py-4 outline-none focus:ring-2 focus:ring-violet" />
-          </label>
+        <form onSubmit={submitContact} className="space-y-4 rounded-[2.5rem] bg-white p-6 shadow-soft">
+          <FormField label="Name" name="name" required />
+          <FormField label="Email" name="email" type="email" required />
+          <FormField label="Subject" name="subject" required />
+          <FormField label="Message" name="message" multiline required />
           <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
             <p className="text-sm text-ink/50">hello@zingly.app / Instagram / LinkedIn</p>
-            <AppButton tone="purple">Send message</AppButton>
+            <AppButton type="submit" tone="purple">Send message</AppButton>
           </div>
         </form>
       </div>
@@ -536,7 +934,9 @@ function Contact() {
 function DownloadCta({ setPage }: { setPage: (page: Page) => void }) {
   return (
     <section className="px-6 py-24">
-      <div className="mx-auto grid max-w-6xl items-center gap-10 rounded-[2.75rem] bg-ink p-8 text-white shadow-soft md:grid-cols-[0.8fr_1.2fr] md:p-16">
+      <div
+        className="mx-auto grid max-w-6xl items-center gap-10 rounded-[2.75rem] bg-ink p-8 text-white shadow-soft md:grid-cols-[0.8fr_1.2fr] md:p-16"
+      >
         <div className="flex justify-center"><PhoneMockup light /></div>
         <div>
           <p className="mb-4 text-xs font-semibold uppercase tracking-[0.28em] text-violet">Download</p>
@@ -558,6 +958,7 @@ function DownloadPage() {
     <main className="px-6 pb-24 pt-36">
       <div className="mx-auto grid max-w-6xl items-center gap-10 md:grid-cols-2">
         <div>
+          <Breadcrumbs current="Download" />
           <p className="mb-4 text-xs font-semibold uppercase tracking-[0.28em] text-violet">Available now</p>
           <h1 className="font-display text-6xl font-semibold leading-tight md:text-8xl">Download Zingly.</h1>
           <p className="mt-6 max-w-md leading-8 text-ink/60">Scan the code, choose your store, and start discovering rooms, apartments, houses, offices, and land.</p>
@@ -570,9 +971,46 @@ function DownloadPage() {
         <div className="relative min-h-[620px] rounded-[2.75rem] bg-white p-8 shadow-soft">
           <div className="absolute left-12 top-16 rotate-[-5deg]"><PhoneMockup /></div>
           <div className="absolute right-12 top-32 rotate-[5deg]"><PhoneMockup light /></div>
+          <div className="absolute bottom-8 left-8 right-8 hidden md:block">
+            <LoadingSkeleton />
+          </div>
         </div>
       </div>
     </main>
+  )
+}
+
+function FaqItem({
+  question,
+  answer,
+  open,
+  onToggle,
+}: {
+  question: string
+  answer: string
+  open: boolean
+  onToggle: () => void
+}) {
+  const id = useId()
+  const panelId = `${id}-panel`
+  const buttonId = `${id}-button`
+
+  return (
+    <section className="rounded-[2rem] bg-white p-6 shadow-soft">
+      <button
+        id={buttonId}
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-controls={panelId}
+        className="flex w-full items-center justify-between text-left font-display text-2xl font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet"
+      >
+        {question}
+        <span className="text-violet" aria-hidden="true">{open ? '-' : '+'}</span>
+      </button>
+      <div id={panelId} role="region" aria-labelledby={buttonId} hidden={!open}>
+        <p className="mt-4 leading-8 text-ink/60">{answer}</p>
+      </div>
+    </section>
   )
 }
 
@@ -587,16 +1025,13 @@ function Faq() {
   ]
   return (
     <main className="px-6 pb-24 pt-36">
+      <div className="mx-auto max-w-3xl">
+        <Breadcrumbs current="FAQ" />
+      </div>
       <SectionHeader eyebrow="FAQ" title="Clear answers, quietly presented." />
       <div className="mx-auto max-w-3xl space-y-3">
         {faqs.map(([question, answer], index) => (
-          <section key={question} className="rounded-[2rem] bg-white p-6 shadow-soft">
-            <button onClick={() => setOpen(open === index ? -1 : index)} className="flex w-full items-center justify-between text-left font-display text-2xl font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet">
-              {question}
-              <span className="text-violet">{open === index ? '-' : '+'}</span>
-            </button>
-            {open === index ? <p className="mt-4 leading-8 text-ink/60">{answer}</p> : null}
-          </section>
+          <FaqItem key={question} question={question} answer={answer} open={open === index} onToggle={() => setOpen(open === index ? -1 : index)} />
         ))}
       </div>
     </main>
@@ -614,6 +1049,9 @@ function ReadingPage({ kind }: { kind: 'Privacy Policy' | 'Terms of Service' }) 
   return (
     <main className="px-6 pb-24 pt-36">
       <div className="mx-auto grid max-w-6xl gap-8 md:grid-cols-[16rem_1fr]">
+        <div className="md:col-span-2">
+          <Breadcrumbs current={kind} />
+        </div>
         <aside className="top-28 h-fit rounded-[2rem] bg-white p-6 shadow-soft md:sticky">
           <p className="mb-4 text-xs font-semibold uppercase tracking-[0.22em] text-violet">Contents</p>
           {sections.map(([title]) => <a key={title} href={`#${title}`} className="block rounded-full px-3 py-2 text-sm text-ink/55 hover:text-violet">{title}</a>)}
@@ -639,19 +1077,32 @@ function Missing({ setPage }: { setPage: (page: Page) => void }) {
   return (
     <main className="flex min-h-screen items-center justify-center px-6 pt-24">
       <section className="max-w-2xl rounded-[2.5rem] bg-white p-10 text-center shadow-soft">
-        <div className="mx-auto mb-8 h-44 w-44 rounded-[2rem] bg-canvas" />
-        <h1 className="font-display text-6xl font-semibold">Looks like this address moved.</h1>
-        <p className="mx-auto mt-5 max-w-md leading-8 text-ink/60">The page is not part of the current Zingly public website.</p>
+        <EmptyState title="Looks like this address moved." copy="This page is not part of the current Zingly public website." />
         <div className="mt-8"><AppButton tone="purple" onClick={() => setPage('home')}>Return home</AppButton></div>
       </section>
     </main>
   )
 }
 
-function Footer({ setPage }: { setPage: (page: Page) => void }) {
+function Footer({
+  setPage,
+  showToast,
+}: {
+  setPage: (page: Page) => void
+  showToast: (message: Omit<ToastMessage, 'id'>) => void
+}) {
+  function submitNewsletter(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    showToast({
+      title: 'Signed up',
+      copy: 'The newsletter form captured your email for this prototype.',
+    })
+    event.currentTarget.reset()
+  }
+
   return (
-    <footer className="pb-8">
-      <div className="w-full rounded-[2.75rem] bg-ink p-8 text-white md:p-12">
+    <footer className="w-full bg-ink text-white">
+      <div className="w-full p-8 md:p-12">
         <div className="grid gap-10 md:grid-cols-[1.5fr_1fr_1fr_1.2fr]">
           <div>
             <div className="mb-5 flex items-center gap-3">
@@ -670,12 +1121,16 @@ function Footer({ setPage }: { setPage: (page: Page) => void }) {
             <p className="mb-4 text-xs font-semibold uppercase tracking-[0.24em] text-white/30">Social</p>
             {['Instagram', 'X', 'LinkedIn', 'Facebook'].map((item) => <a key={item} href="#" className="block py-1.5 text-sm text-white/55 hover:text-white">{item}</a>)}
           </div>
-          <form>
+          <form onSubmit={submitNewsletter}>
             <p className="mb-4 text-xs font-semibold uppercase tracking-[0.24em] text-white/30">Newsletter</p>
             <div className="rounded-full bg-white/10 p-2">
-              <input className="w-full bg-transparent px-4 py-2 text-sm outline-none placeholder:text-white/30" placeholder="Email address" />
+              <label className="sr-only" htmlFor="newsletter-email">Email address</label>
+              <input id="newsletter-email" name="email" type="email" required className="w-full bg-transparent px-4 py-2 text-sm outline-none placeholder:text-white/30 focus:ring-2 focus:ring-violet" placeholder="Email address" />
             </div>
-            <div className="mt-4 flex gap-3"><DownloadBadge store="App Store" dark /></div>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <AppButton type="submit" tone="purple">Join list</AppButton>
+              <DownloadBadge store="App Store" dark />
+            </div>
           </form>
         </div>
         <div className="mt-10 flex flex-col justify-between gap-3 text-xs text-white/30 md:flex-row">
@@ -688,25 +1143,39 @@ function Footer({ setPage }: { setPage: (page: Page) => void }) {
 }
 
 export default function App() {
-  const [page, setPageState] = useState<Page>(() => pageFromHash())
+  const [page, setPageState] = useState<Page>(() => pageFromLocation())
+  const [toast, setToast] = useState<ToastMessage | null>(null)
 
   useEffect(() => {
-    const onHashChange = () => {
-      setPageState(pageFromHash())
+    const syncFromLocation = () => {
+      setPageState(pageFromLocation())
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
-    window.addEventListener('hashchange', onHashChange)
-    return () => window.removeEventListener('hashchange', onHashChange)
+
+    function onCustomNavigate(event: Event) {
+      const next = (event as CustomEvent<Page>).detail
+      setPage(next)
+    }
+
+    window.addEventListener('popstate', syncFromLocation)
+    window.addEventListener('hashchange', syncFromLocation)
+    window.addEventListener('zingly:navigate', onCustomNavigate)
+    return () => {
+      window.removeEventListener('popstate', syncFromLocation)
+      window.removeEventListener('hashchange', syncFromLocation)
+      window.removeEventListener('zingly:navigate', onCustomNavigate)
+    }
   }, [])
 
   function setPage(next: Page) {
-    const nextHash = next === 'home' ? '' : `#${next}`
-    if (window.location.hash !== nextHash) {
-      window.location.hash = nextHash
-      return
-    }
+    const nextPath = pathForPage(next)
+    if (window.location.pathname !== nextPath) window.history.pushState(null, '', nextPath)
     setPageState(next)
     window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function showToast(message: Omit<ToastMessage, 'id'>) {
+    setToast({ ...message, id: Date.now() })
   }
 
   const pageContent = {
@@ -714,7 +1183,7 @@ export default function App() {
     explore: <Explore />,
     community: <Community />,
     about: <About />,
-    contact: <Contact />,
+    contact: <Contact showToast={showToast} />,
     download: <DownloadPage />,
     faq: <Faq />,
     privacy: <ReadingPage kind="Privacy Policy" />,
@@ -726,7 +1195,8 @@ export default function App() {
     <div className="min-h-screen bg-canvas text-ink">
       <Nav page={page} setPage={setPage} />
       {pageContent}
-      {page !== 'missing' ? <Footer setPage={setPage} /> : null}
+      {page !== 'missing' ? <Footer setPage={setPage} showToast={showToast} /> : null}
+      <Toast message={toast} onClose={() => setToast(null)} />
     </div>
   )
 }

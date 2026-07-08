@@ -1,5 +1,6 @@
 {
-  "name": "figma-make-app",
+  "name": "zingly-marketing-site",
+  "description": "Premium public marketing website for Zingly, a mobile property discovery platform.",
   "private": true,
   "version": "1.0.0",
   "type": "module",

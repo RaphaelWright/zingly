@@ -1,6 +1,6 @@
-# figma-make-app
+# zingly-marketing-site
 
-React + Vite + Tailwind CSS project running inside Figma Make.
+React + Vite + Tailwind CSS marketing website for Zingly, running inside Figma Make.
 
 ## Development Server
 
