@@ -1,6 +1,6 @@
 {
   "name": "zingly-marketing-site",
-  "description": "Premium public marketing website for Zingly, a mobile property discovery platform.",
+  "description": "Premium public marketing website for Zingly, a mobile property discovery and listing platform.",
   "private": true,
   "version": "1.0.0",
   "type": "module",

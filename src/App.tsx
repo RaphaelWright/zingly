@@ -122,10 +122,11 @@ const properties: Property[] = [
 
 const collections = [
   ['Modern Apartments', 'Refined apartments with light, proportion, and calm.', properties[0].image],
-  ['Student Rooms', 'Simple rooms close to campus and daily routines.', 'https://images.unsplash.com/photo-1595526114035-0d45ed16cfbf?auto=format&fit=crop&w=900&q=80'],
+  ['Rooms for Rent', 'Simple rooms close to campus, work, and daily routines.', 'https://images.unsplash.com/photo-1595526114035-0d45ed16cfbf?auto=format&fit=crop&w=900&q=80'],
   ['Family Homes', 'Homes with room for mornings, guests, and growing plans.', properties[1].image],
   ['Luxury Villas', 'Private residences with architectural presence.', 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=900&q=80'],
   ['Office Spaces', 'Studios, suites, and offices for focused work.', properties[2].image],
+  ['Stores for Rent', 'Retail spaces and small storefronts ready for local business.', 'https://images.unsplash.com/photo-1604014238170-4def1e4e6fcf?auto=format&fit=crop&w=900&q=80'],
   ['Land Opportunities', 'Plots and sites ready for what comes next.', 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=900&q=80'],
 ]
 
@@ -691,7 +692,7 @@ function Home({ setPage }: { setPage: (page: Page) => void }) {
               Find somewhere <span className="italic">worth</span> calling home.
             </h1>
             <p className="mt-7 max-w-md text-lg leading-8 text-ink/60">
-              Rooms, apartments, houses, offices, and land in one quiet app. Browse, shortlist, and contact the advertiser directly.
+              Rooms, apartments, houses, stores, offices, and land in one quiet app. Browse, shortlist, list your own space, and contact advertisers directly.
             </p>
             <div className="mt-9 flex flex-wrap gap-3">
               <DownloadBadge store="App Store" />
@@ -723,7 +724,7 @@ function Home({ setPage }: { setPage: (page: Page) => void }) {
             ))}
           </div>
           <p className="mt-10 text-center text-sm text-ink/45">
-            Zingly connects property seekers with advertisers. No bookings, payments, reservations, or contracts are handled by Zingly.
+            Zingly connects property seekers with owners, landlords, and agents who advertise listings. No bookings, payments, reservations, or contracts are handled by Zingly.
           </p>
         </div>
       </section>
@@ -760,7 +761,7 @@ function Home({ setPage }: { setPage: (page: Page) => void }) {
             />
             <div className="absolute bottom-20 right-6 max-w-48 rounded-[1.75rem] bg-white p-5 text-ink shadow-soft">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet">No booking layer</p>
-              <p className="mt-3 text-sm leading-6 text-ink/60">Browse the place. Contact the advertiser. Keep the process direct.</p>
+              <p className="mt-3 text-sm leading-6 text-ink/60">Browse the place, list a space, or contact the advertiser. Keep the process direct.</p>
             </div>
           </div>
         </div>
@@ -891,9 +892,9 @@ function About() {
           <img className="h-[36rem] rounded-[2.5rem] object-cover shadow-soft" src="https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=1000&q=80" alt="Architectural interior with soft light" />
           <div className="space-y-6">
             {[
-              ['Mission', 'Help people discover rooms, homes, offices, and land without making the process feel noisy or transactional.'],
+              ['Mission', 'Help people discover and advertise rooms, homes, stores, offices, and land without making the process feel noisy or transactional.'],
               ['Vision', 'A trusted property discovery layer where good spaces are presented with care and advertisers are simple to contact.'],
-              ['Why it exists', 'People do not need another booking engine. They need a beautiful, direct way to see what is available and start a real conversation.'],
+              ['Why it exists', 'People do not need another booking engine. They need a beautiful, direct way to see what is available, list what they have, and start a real conversation.'],
             ].map(([title, copy]) => (
               <section key={title} className="rounded-[2rem] bg-white p-8 shadow-soft">
                 <h2 className="font-display text-4xl font-semibold">{title}</h2>
@@ -952,7 +953,7 @@ function DownloadCta({ setPage }: { setPage: (page: Page) => void }) {
         <div>
           <p className="mb-4 text-xs font-semibold uppercase tracking-[0.28em] text-violet">Download</p>
           <h2 className="font-display text-5xl font-semibold leading-tight md:text-7xl">Your next place is one tap away.</h2>
-          <p className="mt-6 max-w-md leading-8 text-white/55">Download the mobile app to browse curated property listings and contact advertisers directly.</p>
+          <p className="mt-6 max-w-md leading-8 text-white/55">Download the mobile app to browse curated property listings, advertise your own space, and contact people directly.</p>
           <div className="mt-8 flex flex-wrap gap-3">
             <DownloadBadge store="App Store" dark />
             <DownloadBadge store="Google Play" dark />
@@ -972,7 +973,7 @@ function DownloadPage() {
           <Breadcrumbs current="Download" />
           <p className="mb-4 text-xs font-semibold uppercase tracking-[0.28em] text-violet">Available now</p>
           <h1 className="font-display text-6xl font-semibold leading-tight md:text-8xl">Download Zingly.</h1>
-          <p className="mt-6 max-w-md leading-8 text-ink/60">Scan the code, choose your store, and start discovering rooms, apartments, houses, offices, and land.</p>
+          <p className="mt-6 max-w-md leading-8 text-ink/60">Scan the code, choose your store, and start discovering or advertising rooms, apartments, houses, stores, offices, and land.</p>
           <div className="mt-8 flex flex-wrap gap-3">
             <DownloadBadge store="App Store" />
             <DownloadBadge store="Google Play" />
@@ -1028,10 +1029,10 @@ function FaqItem({
 function Faq() {
   const [open, setOpen] = useState(0)
   const faqs = [
-    ['How does Zingly work?', 'Browse listings in the mobile app, save spaces you like, and contact the advertiser directly.'],
+    ['How does Zingly work?', 'Browse listings in the mobile app, save spaces you like, advertise your own space, and contact people directly.'],
     ['Do I pay through Zingly?', 'No. Zingly does not handle payments, reservations, rental agreements, purchase agreements, or contracts.'],
-    ['Can anyone advertise?', 'Property owners, landlords, and licensed agents can advertise listings.'],
-    ['Is the app free?', 'The app is free for property seekers to download and browse.'],
+    ['Can anyone advertise?', 'Property owners, landlords, and licensed agents can advertise rooms, apartments, houses, stores, offices, and land.'],
+    ['Is the app free?', 'The app is free for property seekers to download and browse. Advertisers can add listings through the app.'],
     ['How do I contact an agent?', 'Open a listing and use the advertiser contact options shown in the app.'],
   ]
   return (
@@ -1051,10 +1052,10 @@ function Faq() {
 
 function ReadingPage({ kind }: { kind: 'Privacy Policy' | 'Terms of Service' }) {
   const sections = [
-    ['Overview', 'Zingly is a property discovery platform that connects property seekers with property advertisers.'],
+    ['Overview', 'Zingly is a property discovery platform that connects property seekers with people advertising rooms, apartments, houses, stores, offices, and land.'],
     ['Discovery only', 'Zingly does not process payments, reservations, bookings, rental agreements, purchase agreements, or contracts.'],
     ['Information', 'We may collect account, contact, device, and usage information needed to operate and improve the service.'],
-    ['Advertisers', 'Advertisers are responsible for the accuracy, legality, and availability of their listings and communications.'],
+    ['Advertisers', 'Owners, landlords, and agents are responsible for the accuracy, legality, and availability of their listings and communications.'],
     ['Contact', 'Questions can be sent to hello@zingly.app.'],
   ]
   return (
@@ -1122,7 +1123,7 @@ function Footer({
               </span>
               <span className="text-lg font-semibold">Zingly</span>
             </div>
-            <p className="max-w-sm leading-8 text-white/50">Premium property discovery for rooms, apartments, houses, offices, and land. Direct contact, no booking layer.</p>
+            <p className="max-w-sm leading-8 text-white/50">Premium property discovery and listing for rooms, apartments, houses, stores, offices, and land. Direct contact, no booking layer.</p>
           </div>
           <div>
             <p className="mb-4 text-xs font-semibold uppercase tracking-[0.24em] text-white/30">Navigate</p>
